@@ -5,9 +5,7 @@ nvim
 
 spell/
 
-# You likely want to comment this, since it's recommended to track lazy-lock.json in version
-# control, see https://lazy.folke.io/usage/lockfile
-# For kickstart, it makes sense to leave it ignored.
-lazy-lock.json
+# Tracking lazy-lock.json in version control per lazy.nvim recommendation
+# https://lazy.folke.io/usage/lockfile
 
 .DS_Store

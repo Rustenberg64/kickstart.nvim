@@ -13,8 +13,8 @@ end, { desc = 'Copy relative path' })
 
 -- LazyGit (plugin-free)
 vim.keymap.set('n', '<leader>g', function()
-  vim.cmd 'tabnew'
-  vim.fn.termopen('lazygit', {
+  vim.cmd 'noautocmd tabnew'
+  vim.fn.termopen({ 'lazygit' }, {
     on_exit = function()
       vim.cmd 'tabclose'
     end,

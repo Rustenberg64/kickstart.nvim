@@ -11,6 +11,17 @@ vim.keymap.set('n', '<leader>y', function()
   print('Copied: ' .. path)
 end, { desc = 'Copy relative path' })
 
+-- LazyGit (plugin-free)
+vim.keymap.set('n', '<leader>g', function()
+  vim.cmd 'tabnew'
+  vim.fn.termopen('lazygit', {
+    on_exit = function()
+      vim.cmd 'tabclose'
+    end,
+  })
+  vim.cmd 'startinsert'
+end, { desc = 'LazyGit' })
+
 -- Autocmds: terminal mode tmux navigation
 vim.api.nvim_create_autocmd('TermOpen', {
   callback = function()

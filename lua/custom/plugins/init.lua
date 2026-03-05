@@ -22,7 +22,7 @@ vim.keymap.set('n', '<leader>g', function()
   vim.cmd 'startinsert'
 end, { desc = 'LazyGit' })
 
--- Autocmds: terminal mode tmux navigation
+-- Autocmds: terminal mode
 vim.api.nvim_create_autocmd('TermOpen', {
   callback = function()
     local opts = { buffer = 0 }
@@ -30,6 +30,15 @@ vim.api.nvim_create_autocmd('TermOpen', {
     vim.keymap.set('t', '<C-j>', '<C-\\><C-n><cmd>TmuxNavigateDown<cr>', opts)
     vim.keymap.set('t', '<C-k>', '<C-\\><C-n><cmd>TmuxNavigateUp<cr>', opts)
     vim.keymap.set('t', '<C-l>', '<C-\\><C-n><cmd>TmuxNavigateRight<cr>', opts)
+  end,
+})
+
+-- Auto-enter insert mode when returning to a terminal buffer
+vim.api.nvim_create_autocmd({ 'BufEnter', 'FocusGained' }, {
+  callback = function()
+    if vim.bo.buftype == 'terminal' and vim.fn.mode() == 'n' then
+      vim.cmd 'startinsert'
+    end
   end,
 })
 

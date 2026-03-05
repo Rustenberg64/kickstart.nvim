@@ -11,15 +11,26 @@ vim.keymap.set('n', '<leader>y', function()
   print('Copied: ' .. path)
 end, { desc = 'Copy relative path' })
 
+vim.keymap.set('n', 'H', '<cmd>bprevious<cr>', { desc = 'Previous buffer' })
+vim.keymap.set('n', 'L', '<cmd>bnext<cr>', { desc = 'Next buffer' })
+
 -- LazyGit (plugin-free)
 vim.keymap.set('n', '<leader>g', function()
   vim.cmd 'noautocmd tabnew'
-  vim.fn.termopen({ 'lazygit' }, {
-    on_exit = function()
-      vim.cmd 'tabclose'
+  local buf = vim.api.nvim_get_current_buf()
+  vim.fn.termopen({ 'lazygit' })
+  vim.cmd 'startinsert'
+  vim.api.nvim_create_autocmd('TermClose', {
+    buffer = buf,
+    once = true,
+    callback = function()
+      vim.schedule(function()
+        if vim.api.nvim_buf_is_valid(buf) then
+          vim.cmd('bwipeout! ' .. buf)
+        end
+      end)
     end,
   })
-  vim.cmd 'startinsert'
 end, { desc = 'LazyGit' })
 
 -- Autocmds: terminal mode

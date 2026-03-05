@@ -5,7 +5,7 @@ vim.opt.updatetime = 200
 vim.opt.redrawtime = 1500
 
 -- Keymaps
-vim.keymap.set('n', '<leader>cy', function()
+vim.keymap.set('n', '<leader>y', function()
   local path = vim.fn.fnamemodify(vim.fn.expand '%:p', ':~:.')
   vim.fn.setreg('+', path)
   print('Copied: ' .. path)

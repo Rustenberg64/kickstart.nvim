@@ -1,8 +1,25 @@
--- You can add your own plugins here or in other files in this directory!
---  I promise not to create any merge conflicts in this directory :)
---
--- See the kickstart.nvim README for more information
+-- Custom options
+vim.env.PATH = vim.env.HOME .. '/.asdf/shims:' .. vim.env.PATH
+vim.opt.synmaxcol = 240
+vim.opt.updatetime = 200
+vim.opt.redrawtime = 1500
 
----@module 'lazy'
----@type LazySpec
+-- Keymaps
+vim.keymap.set('n', '<leader>cy', function()
+  local path = vim.fn.fnamemodify(vim.fn.expand '%:p', ':~:.')
+  vim.fn.setreg('+', path)
+  print('Copied: ' .. path)
+end, { desc = 'Copy relative path' })
+
+-- Autocmds: terminal mode tmux navigation
+vim.api.nvim_create_autocmd('TermOpen', {
+  callback = function()
+    local opts = { buffer = 0 }
+    vim.keymap.set('t', '<C-h>', '<C-\\><C-n><cmd>TmuxNavigateLeft<cr>', opts)
+    vim.keymap.set('t', '<C-j>', '<C-\\><C-n><cmd>TmuxNavigateDown<cr>', opts)
+    vim.keymap.set('t', '<C-k>', '<C-\\><C-n><cmd>TmuxNavigateUp<cr>', opts)
+    vim.keymap.set('t', '<C-l>', '<C-\\><C-n><cmd>TmuxNavigateRight<cr>', opts)
+  end,
+})
+
 return {}

@@ -11,6 +11,8 @@ vim.keymap.set('n', '<leader>y', function()
   print('Copied: ' .. path)
 end, { desc = 'Copy relative path' })
 
+vim.keymap.set({ 'n', 'i', 'v' }, '<C-s>', '<cmd>w<cr><esc>', { desc = 'Save file' })
+
 vim.keymap.set('n', 'H', '<cmd>bprevious<cr>', { desc = 'Previous buffer' })
 vim.keymap.set('n', 'L', '<cmd>bnext<cr>', { desc = 'Next buffer' })
 

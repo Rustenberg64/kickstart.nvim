@@ -1,8 +1,22 @@
+local function asdf_flutter_path()
+  if vim.fn.executable 'asdf' == 0 then return nil end
+
+  local result = vim.fn.systemlist { 'asdf', 'which', 'flutter' }
+  if vim.v.shell_error ~= 0 or not result[1] or result[1] == '' then return nil end
+
+  return result[1]
+end
+
 return {
   'nvim-flutter/flutter-tools.nvim',
   ft = 'dart',
   dependencies = { 'nvim-lua/plenary.nvim' },
-  config = true,
+  config = function()
+    require('flutter-tools').setup {
+      -- flutter-tools mis-detects the SDK root when it starts from an asdf shim path.
+      flutter_path = asdf_flutter_path(),
+    }
+  end,
   keys = {
     { '<leader>Fr', function() vim.cmd 'FlutterRun --flavor stg --dart-define=FLAVOR=stg' end, desc = 'Flutter Run (stg)' },
     { '<leader>Fq', '<cmd>FlutterQuit<cr>', desc = 'Flutter Quit' },

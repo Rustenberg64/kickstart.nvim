@@ -627,6 +627,7 @@ require('lazy').setup({
         rubocop = {
           root_markers = { '.git' },
         },
+        jsonls = {},
 
         stylua = {}, -- Used to format Lua code
 

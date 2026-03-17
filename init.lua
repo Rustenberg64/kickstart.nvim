@@ -628,6 +628,7 @@ require('lazy').setup({
           root_markers = { '.git' },
         },
         jsonls = {},
+        yamlls = {},
 
         stylua = {}, -- Used to format Lua code
 

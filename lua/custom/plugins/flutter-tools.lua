@@ -27,5 +27,6 @@ return {
     { '<leader>Ft', '<cmd>FlutterDevTools<cr>', desc = 'Flutter DevTools' },
     { '<leader>Fs', '<cmd>FlutterLspRestart<cr>', desc = 'Flutter LSP Restart' },
     { '<leader>FL', '<cmd>FlutterLogToggle<cr>', desc = 'Flutter Log' },
+    { '<leader>Fe', '<cmd>FlutterEmulators<cr>', desc = 'Flutter Emulators' },
   },
 }

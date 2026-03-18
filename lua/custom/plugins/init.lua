@@ -9,12 +9,12 @@ vim.keymap.set('n', '<leader>y', function()
   local path = vim.fn.fnamemodify(vim.fn.expand '%:p', ':~:.')
   vim.fn.setreg('+', path)
   print('Copied: ' .. path)
-end, { desc = 'Copy relative path' })
+end, { desc = '[Y]ank Relative Path' })
 
-vim.keymap.set({ 'n', 'i', 'v' }, '<C-s>', '<cmd>w<cr><esc>', { desc = 'Save file' })
+vim.keymap.set({ 'n', 'i', 'v' }, '<C-s>', '<cmd>w<cr><esc>', { desc = 'Ctrl+[S] Save File' })
 
-vim.keymap.set('n', 'H', '<cmd>bprevious<cr>', { desc = 'Previous buffer' })
-vim.keymap.set('n', 'L', '<cmd>bnext<cr>', { desc = 'Next buffer' })
+vim.keymap.set('n', 'H', '<cmd>bprevious<cr>', { desc = '[H] Previous Buffer' })
+vim.keymap.set('n', 'L', '<cmd>bnext<cr>', { desc = '[L] Next Buffer' })
 
 local function open_git_terminal(cmd, label)
   local previous_tab = vim.api.nvim_get_current_tabpage()
@@ -79,12 +79,12 @@ end
 -- LazyGit (plugin-free)
 vim.keymap.set('n', '<leader>g', function()
   open_git_terminal({ 'lazygit' }, 'lazygit')
-end, { desc = 'LazyGit' })
+end, { desc = 'Lazy[G]it' })
 
 -- GitUI (plugin-free)
 vim.keymap.set('n', '<leader>G', function()
   open_git_terminal({ 'gitui' }, 'gitui')
-end, { desc = 'GitUI' })
+end, { desc = '[G]itUI' })
 
 -- Autocmds: terminal mode
 vim.api.nvim_create_autocmd('TermOpen', {

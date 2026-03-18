@@ -5,10 +5,10 @@ return {
     'olimorris/neotest-rspec',
   },
   keys = {
-    { '<leader>Tn', function() require('neotest').run.run() end, desc = 'Run nearest test' },
-    { '<leader>Tf', function() require('neotest').run.run(vim.fn.expand '%') end, desc = 'Run file tests' },
-    { '<leader>To', function() require('neotest').output.open { enter_test = true } end, desc = 'Test output' },
-    { '<leader>Ts', function() require('neotest').summary.toggle() end, desc = 'Test summary' },
+    { '<leader>Tn', function() require('neotest').run.run() end, desc = '[T]est [N]earest' },
+    { '<leader>Tf', function() require('neotest').run.run(vim.fn.expand '%') end, desc = '[T]est [F]ile' },
+    { '<leader>To', function() require('neotest').output.open { enter_test = true } end, desc = '[T]est [O]utput' },
+    { '<leader>Ts', function() require('neotest').summary.toggle() end, desc = '[T]est [S]ummary' },
   },
   config = function()
     require('neotest').setup {

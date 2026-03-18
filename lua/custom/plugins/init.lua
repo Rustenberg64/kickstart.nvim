@@ -35,6 +35,25 @@ vim.keymap.set('n', '<leader>g', function()
   })
 end, { desc = 'LazyGit' })
 
+-- GitUI (plugin-free)
+vim.keymap.set('n', '<leader>G', function()
+  vim.cmd 'noautocmd tabnew'
+  local buf = vim.api.nvim_get_current_buf()
+  vim.fn.termopen({ 'gitui' })
+  vim.cmd 'startinsert'
+  vim.api.nvim_create_autocmd('TermClose', {
+    buffer = buf,
+    once = true,
+    callback = function()
+      vim.schedule(function()
+        if vim.api.nvim_buf_is_valid(buf) then
+          vim.cmd('bwipeout! ' .. buf)
+        end
+      end)
+    end,
+  })
+end, { desc = 'GitUI' })
+
 -- Autocmds: terminal mode
 vim.api.nvim_create_autocmd('TermOpen', {
   callback = function()

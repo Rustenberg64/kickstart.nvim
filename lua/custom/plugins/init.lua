@@ -16,12 +16,53 @@ vim.keymap.set({ 'n', 'i', 'v' }, '<C-s>', '<cmd>w<cr><esc>', { desc = 'Save fil
 vim.keymap.set('n', 'H', '<cmd>bprevious<cr>', { desc = 'Previous buffer' })
 vim.keymap.set('n', 'L', '<cmd>bnext<cr>', { desc = 'Next buffer' })
 
--- LazyGit (plugin-free)
-vim.keymap.set('n', '<leader>g', function()
+local function open_git_terminal(cmd, label)
+  local previous_tab = vim.api.nvim_get_current_tabpage()
+
   vim.cmd 'noautocmd tabnew'
+
+  local terminal_tab = vim.api.nvim_get_current_tabpage()
   local buf = vim.api.nvim_get_current_buf()
-  vim.fn.termopen({ 'lazygit' })
+  local job_id = vim.fn.termopen(cmd)
+
+  if type(job_id) ~= 'number' or job_id <= 0 then
+    vim.notify('Failed to launch ' .. label, vim.log.levels.ERROR)
+
+    vim.schedule(function()
+      if vim.api.nvim_buf_is_valid(buf) then
+        vim.cmd('bwipeout! ' .. buf)
+      end
+
+      if vim.api.nvim_tabpage_is_valid(terminal_tab) then
+        pcall(vim.api.nvim_set_current_tabpage, terminal_tab)
+        if vim.api.nvim_get_current_tabpage() == terminal_tab then
+          vim.cmd 'tabclose!'
+        end
+      elseif vim.api.nvim_tabpage_is_valid(previous_tab) then
+        pcall(vim.api.nvim_set_current_tabpage, previous_tab)
+      end
+    end)
+
+    return
+  end
+
   vim.cmd 'startinsert'
+
+  vim.api.nvim_create_autocmd('BufLeave', {
+    buffer = buf,
+    once = true,
+    callback = function()
+      if not vim.api.nvim_buf_is_valid(buf) then
+        return
+      end
+
+      local status = vim.fn.jobwait({ job_id }, 0)[1]
+      if status == -1 then
+        vim.fn.jobstop(job_id)
+      end
+    end,
+  })
+
   vim.api.nvim_create_autocmd('TermClose', {
     buffer = buf,
     once = true,
@@ -33,25 +74,16 @@ vim.keymap.set('n', '<leader>g', function()
       end)
     end,
   })
+end
+
+-- LazyGit (plugin-free)
+vim.keymap.set('n', '<leader>g', function()
+  open_git_terminal({ 'lazygit' }, 'lazygit')
 end, { desc = 'LazyGit' })
 
 -- GitUI (plugin-free)
 vim.keymap.set('n', '<leader>G', function()
-  vim.cmd 'noautocmd tabnew'
-  local buf = vim.api.nvim_get_current_buf()
-  vim.fn.termopen({ 'gitui' })
-  vim.cmd 'startinsert'
-  vim.api.nvim_create_autocmd('TermClose', {
-    buffer = buf,
-    once = true,
-    callback = function()
-      vim.schedule(function()
-        if vim.api.nvim_buf_is_valid(buf) then
-          vim.cmd('bwipeout! ' .. buf)
-        end
-      end)
-    end,
-  })
+  open_git_terminal({ 'gitui' }, 'gitui')
 end, { desc = 'GitUI' })
 
 -- Autocmds: terminal mode

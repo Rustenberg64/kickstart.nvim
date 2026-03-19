@@ -96,7 +96,8 @@ local function count_float_windows()
   local count = 0
 
   for _, win in ipairs(vim.api.nvim_list_wins()) do
-    if vim.api.nvim_win_get_config(win).relative ~= '' then
+    local config = vim.api.nvim_win_get_config(win)
+    if config.relative ~= '' and not config.hide then
       count = count + 1
     end
   end
@@ -114,6 +115,12 @@ local function assert_truthy(value, message)
   if not value then
     error(message)
   end
+end
+
+local function assert_win_hidden(win, message)
+  assert_truthy(vim.api.nvim_win_is_valid(win), message .. ' (window invalid)')
+  local ok, config = pcall(vim.api.nvim_win_get_config, win)
+  assert_truthy(ok and config.hide, message)
 end
 
 local ok, err = pcall(dofile, init_path)
@@ -221,30 +228,29 @@ local test_ok, test_err = pcall(function()
   reset_records()
   callbacks['<leader>g']()
 
-  assert_truthy(not vim.api.nvim_win_is_valid(toggle_float_win), 'expected toggle hide to close the float window')
+  assert_win_hidden(toggle_float_win, 'expected toggle hide to hide the float window')
   assert_truthy(vim.api.nvim_buf_is_valid(toggle_buf), 'expected toggle hide to keep the buffer alive')
   assert_equal(recorded.jobstop, nil, 'expected toggle hide to NOT stop the job')
-  assert_equal(count_float_windows(), toggle_starting_float_count, 'expected toggle hide to remove all float windows')
+  assert_equal(count_float_windows(), toggle_starting_float_count, 'expected toggle hide to have no visible float windows')
 
-  -- Toggle show: <leader>g while hidden (should reuse buffer, no new termopen)
+  -- Toggle show: <leader>g while hidden (should reuse same window, no new termopen)
   reset_records()
   callbacks['<leader>g']()
 
-  local reshown_float_win = vim.api.nvim_get_current_win()
-  local reshown_config = vim.api.nvim_win_get_config(reshown_float_win)
-
-  assert_truthy(reshown_config.relative ~= '', 'expected toggle show to reopen a floating window')
-  assert_equal(vim.api.nvim_win_get_buf(reshown_float_win), toggle_buf, 'expected toggle show to reuse the existing buffer')
+  assert_equal(vim.api.nvim_get_current_win(), toggle_float_win, 'expected toggle show to reuse the same window')
+  assert_truthy(not vim.api.nvim_win_get_config(toggle_float_win).hide, 'expected toggle show to unhide the window')
+  assert_equal(vim.api.nvim_win_get_buf(toggle_float_win), toggle_buf, 'expected toggle show to reuse the existing buffer')
   assert_equal(recorded.termopen_cmd, nil, 'expected toggle show to NOT call termopen again')
+  assert_equal(recorded.open_win, nil, 'expected toggle show to NOT create a new window')
 
   -- Clean up via TermClose
   vim.api.nvim_exec_autocmds('TermClose', { buffer = toggle_buf })
   vim.wait(100, function()
-    return not vim.api.nvim_buf_is_valid(toggle_buf) and not vim.api.nvim_win_is_valid(reshown_float_win)
+    return not vim.api.nvim_buf_is_valid(toggle_buf) and not vim.api.nvim_win_is_valid(toggle_float_win)
   end)
 
   assert_truthy(not vim.api.nvim_buf_is_valid(toggle_buf), 'expected toggle TermClose to wipe the buffer')
-  assert_truthy(not vim.api.nvim_win_is_valid(reshown_float_win), 'expected toggle TermClose to close the float')
+  assert_truthy(not vim.api.nvim_win_is_valid(toggle_float_win), 'expected toggle TermClose to close the float')
 
   -- == Test 4: BufLeave hides float (doesn't kill job) ==
 
@@ -265,10 +271,10 @@ local test_ok, test_err = pcall(function()
   reset_records()
   vim.api.nvim_set_current_win(leave_destination_win)
 
-  assert_truthy(not vim.api.nvim_win_is_valid(leave_float_win), 'expected BufLeave to close the float window')
+  assert_win_hidden(leave_float_win, 'expected BufLeave to hide the float window')
   assert_truthy(vim.api.nvim_buf_is_valid(leave_buf), 'expected BufLeave to keep the buffer alive')
   assert_equal(recorded.jobstop, nil, 'expected BufLeave to NOT stop the job')
-  assert_equal(count_float_windows(), leave_starting_float_count, 'expected BufLeave to remove all float windows')
+  assert_equal(count_float_windows(), leave_starting_float_count, 'expected BufLeave to have no visible float windows')
   assert_equal(vim.api.nvim_get_current_win(), leave_destination_win, 'expected BufLeave to keep focus on the destination window')
   assert_equal(vim.api.nvim_get_current_tabpage(), leave_starting_tab, 'expected BufLeave to keep focus in the origin tab')
 
@@ -358,6 +364,7 @@ local test_ok, test_err = pcall(function()
   reset_records()
   callbacks['<leader>g']()
 
+  assert_win_hidden(dead_float_win, 'expected toggle hide to hide the float')
   assert_truthy(vim.api.nvim_buf_is_valid(dead_buf), 'expected hidden lazygit to keep buffer alive')
 
   -- Simulate process death
@@ -408,18 +415,19 @@ local test_ok, test_err = pcall(function()
   -- Move to window B
   vim.api.nvim_set_current_win(reshow_win_b)
 
-  -- Re-show from window B
+  -- Re-show from window B (should reuse same hidden window)
   reset_records()
   callbacks['<leader>g']()
 
-  local reshow_new_float = vim.api.nvim_get_current_win()
-  assert_truthy(vim.api.nvim_win_get_config(reshow_new_float).relative ~= '', 'expected re-show from B to open a float')
-  assert_equal(vim.api.nvim_win_get_buf(reshow_new_float), reshow_buf, 'expected re-show from B to reuse the buffer')
+  assert_equal(vim.api.nvim_get_current_win(), reshow_float_win, 'expected re-show from B to reuse the same float window')
+  assert_truthy(not vim.api.nvim_win_get_config(reshow_float_win).hide, 'expected re-show from B to unhide the float')
+  assert_equal(vim.api.nvim_win_get_buf(reshow_float_win), reshow_buf, 'expected re-show from B to reuse the buffer')
+  assert_equal(recorded.open_win, nil, 'expected re-show from B to NOT create a new window')
 
   -- TermClose should NOT jump to window A (origin_win updated to B)
   vim.api.nvim_exec_autocmds('TermClose', { buffer = reshow_buf })
   vim.wait(100, function()
-    return not vim.api.nvim_buf_is_valid(reshow_buf) and not vim.api.nvim_win_is_valid(reshow_new_float)
+    return not vim.api.nvim_buf_is_valid(reshow_buf) and not vim.api.nvim_win_is_valid(reshow_float_win)
   end)
 
   assert_truthy(not vim.api.nvim_buf_is_valid(reshow_buf), 'expected reshow TermClose to wipe the buffer')

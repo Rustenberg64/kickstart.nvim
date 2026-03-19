@@ -104,21 +104,32 @@ local function lazygit_is_alive()
     and vim.fn.jobwait({ lazygit_state.job_id }, 0)[1] == -1
 end
 
+local function lazygit_float_visible()
+  if not lazygit_state or not lazygit_state.float_win then
+    return false
+  end
+  if not vim.api.nvim_win_is_valid(lazygit_state.float_win) then
+    return false
+  end
+  local ok, config = pcall(vim.api.nvim_win_get_config, lazygit_state.float_win)
+  return ok and not config.hide
+end
+
 local function lazygit_cleanup()
   if not lazygit_state then
     return
   end
 
+  local was_visible = lazygit_float_visible()
+
   local state = lazygit_state
   lazygit_state = nil
 
-  local float_visible = state.float_win and vim.api.nvim_win_is_valid(state.float_win)
-
-  if float_visible then
+  if state.float_win and vim.api.nvim_win_is_valid(state.float_win) then
     pcall(vim.api.nvim_win_close, state.float_win, true)
   end
 
-  if float_visible and state.origin_win and vim.api.nvim_win_is_valid(state.origin_win) then
+  if was_visible and state.origin_win and vim.api.nvim_win_is_valid(state.origin_win) then
     pcall(vim.api.nvim_set_current_win, state.origin_win)
   end
 
@@ -130,10 +141,9 @@ local function lazygit_cleanup()
 end
 
 local function toggle_lazygit()
-  -- If float is visible, hide it (keep process alive)
-  if lazygit_state and lazygit_state.float_win and vim.api.nvim_win_is_valid(lazygit_state.float_win) then
-    pcall(vim.api.nvim_win_close, lazygit_state.float_win, true)
-    lazygit_state.float_win = nil
+  -- If float is visible, hide it (keep window + process alive)
+  if lazygit_float_visible() then
+    pcall(vim.api.nvim_win_set_config, lazygit_state.float_win, { hide = true })
     if lazygit_state.origin_win and vim.api.nvim_win_is_valid(lazygit_state.origin_win) then
       pcall(vim.api.nvim_set_current_win, lazygit_state.origin_win)
     end
@@ -143,13 +153,25 @@ local function toggle_lazygit()
   -- If lazygit is alive but hidden, re-show it
   if lazygit_is_alive() then
     lazygit_state.origin_win = vim.api.nvim_get_current_win()
-    local ok, win = pcall(vim.api.nvim_open_win, lazygit_state.buf, true, lazygit_float_opts())
-    if not ok then
-      vim.notify('Failed to reopen lazygit window', vim.log.levels.ERROR)
-      lazygit_cleanup()
-      return
+    if lazygit_state.float_win and vim.api.nvim_win_is_valid(lazygit_state.float_win) then
+      local opts = lazygit_float_opts()
+      opts.hide = false
+      local ok = pcall(vim.api.nvim_win_set_config, lazygit_state.float_win, opts)
+      if not ok then
+        vim.notify('Failed to reopen lazygit window', vim.log.levels.ERROR)
+        lazygit_cleanup()
+        return
+      end
+      pcall(vim.api.nvim_set_current_win, lazygit_state.float_win)
+    else
+      local ok, win = pcall(vim.api.nvim_open_win, lazygit_state.buf, true, lazygit_float_opts())
+      if not ok then
+        vim.notify('Failed to reopen lazygit window', vim.log.levels.ERROR)
+        lazygit_cleanup()
+        return
+      end
+      lazygit_state.float_win = win
     end
-    lazygit_state.float_win = win
     vim.cmd 'startinsert'
     return
   end
@@ -201,8 +223,7 @@ local function toggle_lazygit()
         return true
       end
       if lazygit_state.float_win and vim.api.nvim_win_is_valid(lazygit_state.float_win) then
-        pcall(vim.api.nvim_win_close, lazygit_state.float_win, true)
-        lazygit_state.float_win = nil
+        pcall(vim.api.nvim_win_set_config, lazygit_state.float_win, { hide = true })
       end
     end,
   })

@@ -87,7 +87,16 @@ local function create_lazygit_float_state()
   local row = math.max(math.floor((vim.o.lines - height) / 2 - 1), 0)
   local col = math.max(math.floor((vim.o.columns - width) / 2), 0)
 
-  local float_win = vim.api.nvim_open_win(buf, true, {
+  local state = {
+    origin_win = origin_win,
+    buf = buf,
+    float_win = nil,
+    job_id = nil,
+    stop_requested = false,
+    closed = false,
+  }
+
+  local ok, float_win_or_err = pcall(vim.api.nvim_open_win, buf, true, {
     relative = 'editor',
     row = row,
     col = col,
@@ -97,14 +106,12 @@ local function create_lazygit_float_state()
     border = 'rounded',
   })
 
-  return {
-    origin_win = origin_win,
-    buf = buf,
-    float_win = float_win,
-    job_id = nil,
-    stop_requested = false,
-    closed = false,
-  }
+  if not ok then
+    return nil, state, float_win_or_err
+  end
+
+  state.float_win = float_win_or_err
+  return state
 end
 
 local function cleanup_lazygit_float(state, restore_origin)
@@ -114,15 +121,15 @@ local function cleanup_lazygit_float(state, restore_origin)
 
   state.closed = true
 
-  if restore_origin and vim.api.nvim_win_is_valid(state.origin_win) then
+  if restore_origin and state.origin_win and vim.api.nvim_win_is_valid(state.origin_win) then
     pcall(vim.api.nvim_set_current_win, state.origin_win)
   end
 
-  if vim.api.nvim_win_is_valid(state.float_win) then
+  if state.float_win and vim.api.nvim_win_is_valid(state.float_win) then
     pcall(vim.api.nvim_win_close, state.float_win, true)
   end
 
-  if vim.api.nvim_buf_is_valid(state.buf) then
+  if state.buf and vim.api.nvim_buf_is_valid(state.buf) then
     pcall(vim.cmd, 'bwipeout! ' .. state.buf)
   end
 end
@@ -140,7 +147,13 @@ local function request_lazygit_stop(state)
 end
 
 local function open_lazygit_float()
-  local state = create_lazygit_float_state()
+  local state, failed_state = create_lazygit_float_state()
+  if not state then
+    vim.notify('Failed to launch lazygit', vim.log.levels.ERROR)
+    cleanup_lazygit_float(failed_state, true)
+    return
+  end
+
   local ok, job_id_or_err = pcall(vim.fn.termopen, { 'lazygit' })
 
   if not ok or type(job_id_or_err) ~= 'number' or job_id_or_err <= 0 then
@@ -156,7 +169,12 @@ local function open_lazygit_float()
     buffer = state.buf,
     once = true,
     callback = function()
+      if state.closed then
+        return
+      end
+
       request_lazygit_stop(state)
+      cleanup_lazygit_float(state, true)
     end,
   })
 

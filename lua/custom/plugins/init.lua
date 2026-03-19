@@ -16,7 +16,7 @@ vim.keymap.set({ 'n', 'i', 'v' }, '<C-s>', '<cmd>w<cr><esc>', { desc = 'Ctrl+[S]
 vim.keymap.set('n', 'H', '<cmd>bprevious<cr>', { desc = '[H] Previous Buffer' })
 vim.keymap.set('n', 'L', '<cmd>bnext<cr>', { desc = '[L] Next Buffer' })
 
-local function open_git_terminal(cmd, label)
+local function open_git_tab_terminal(cmd, label)
   local previous_tab = vim.api.nvim_get_current_tabpage()
 
   vim.cmd 'noautocmd tabnew'
@@ -76,14 +76,38 @@ local function open_git_terminal(cmd, label)
   })
 end
 
+local function open_lazygit_float()
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.bo[buf].bufhidden = 'wipe'
+  vim.bo[buf].swapfile = false
+
+  local width = math.max(math.floor(vim.o.columns * 0.9), 80)
+  local height = math.max(math.floor(vim.o.lines * 0.9), 20)
+  local row = math.max(math.floor((vim.o.lines - height) / 2 - 1), 0)
+  local col = math.max(math.floor((vim.o.columns - width) / 2), 0)
+
+  vim.api.nvim_open_win(buf, true, {
+    relative = 'editor',
+    row = row,
+    col = col,
+    width = width,
+    height = height,
+    style = 'minimal',
+    border = 'rounded',
+  })
+
+  vim.fn.termopen({ 'lazygit' })
+  vim.cmd 'startinsert'
+end
+
 -- LazyGit (plugin-free)
 vim.keymap.set('n', '<leader>g', function()
-  open_git_terminal({ 'lazygit' }, 'lazygit')
+  open_lazygit_float()
 end, { desc = 'Lazy[G]it' })
 
 -- GitUI (plugin-free)
 vim.keymap.set('n', '<leader>G', function()
-  open_git_terminal({ 'gitui' }, 'gitui')
+  open_git_tab_terminal({ 'gitui' }, 'gitui')
 end, { desc = '[G]itUI' })
 
 -- Autocmds: terminal mode

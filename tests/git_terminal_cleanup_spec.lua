@@ -25,6 +25,7 @@ end
 vim.fn.termopen = function(cmd)
   recorded.termopen_cmd = cmd
   recorded.termopen_buf = vim.api.nvim_get_current_buf()
+  recorded.termopen_win = vim.api.nvim_get_current_win()
   return termopen_result
 end
 
@@ -72,30 +73,21 @@ assert_truthy(type(callbacks['<leader>g']) == 'function', 'expected <leader>g ma
 assert_truthy(type(callbacks['<leader>G']) == 'function', 'expected <leader>G mapping callback')
 
 vim.cmd 'enew'
-local starting_tab = vim.api.nvim_get_current_tabpage()
 
 callbacks['<leader>g']()
 
 assert_equal(recorded.termopen_cmd[1], 'lazygit', 'expected lazygit launcher to call termopen')
-assert_truthy(vim.api.nvim_get_current_tabpage() ~= starting_tab, 'expected lazygit launcher to open a new tab')
+local lazygit_float_win = vim.api.nvim_get_current_win()
+local lazygit_config = vim.api.nvim_win_get_config(lazygit_float_win)
 
-local git_terminal_buf = vim.api.nvim_get_current_buf()
-
-vim.cmd 'tabprevious'
-
-assert_equal(recorded.jobstop, 77, 'expected leaving the lazygit tab to stop the terminal job')
-assert_equal(recorded.jobwait.jobs[1], 77, 'expected leaving the lazygit tab to check job status before stopping')
-
-vim.api.nvim_exec_autocmds('TermClose', { buffer = git_terminal_buf })
-vim.wait(100, function()
-  return not vim.api.nvim_buf_is_valid(git_terminal_buf)
-end)
-
-assert_truthy(not vim.api.nvim_buf_is_valid(git_terminal_buf), 'expected terminal buffer to be wiped after TermClose')
+assert_truthy(lazygit_config.relative ~= '', 'expected lazygit to open in a floating window')
+assert_equal(recorded.termopen_buf, vim.api.nvim_win_get_buf(lazygit_float_win), 'expected termopen to target the float buffer')
+assert_equal(recorded.termopen_win, lazygit_float_win, 'expected lazygit float to be current when termopen runs')
 
 termopen_result = 0
 recorded.termopen_cmd = nil
 recorded.termopen_buf = nil
+recorded.termopen_win = nil
 
 local gitui_starting_tab = vim.api.nvim_get_current_tabpage()
 local gitui_starting_tab_count = #vim.api.nvim_list_tabpages()

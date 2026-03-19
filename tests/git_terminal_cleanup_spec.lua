@@ -166,6 +166,9 @@ local lazygit_leave_win, lazygit_leave_buf = launch_lazygit('leave cleanup')
 
 vim.api.nvim_set_current_win(lazygit_leave_starting_win)
 
+assert_truthy(recorded.jobwait ~= nil, 'expected leaving the lazygit float to check job status before stopping')
+assert_equal(recorded.jobwait.jobs[1], 77, 'expected leaving the lazygit float to check the lazygit job id before stopping')
+assert_equal(recorded.jobwait.timeout, 0, 'expected leaving the lazygit float to check job status without waiting')
 assert_equal(recorded.jobstop, 77, 'expected leaving the lazygit float to stop the terminal job')
 assert_truthy(not vim.api.nvim_win_is_valid(lazygit_leave_win), 'expected leaving the lazygit float to dismiss the overlay immediately')
 assert_truthy(vim.api.nvim_buf_is_valid(lazygit_leave_buf), 'expected leaving the lazygit float to keep the terminal buffer until TermClose')
@@ -278,6 +281,9 @@ assert_truthy(vim.api.nvim_get_current_tabpage() ~= gitui_starting_tab, 'expecte
 vim.cmd 'tabprevious'
 
 assert_truthy(vim.api.nvim_get_current_tabpage() == gitui_starting_tab, 'expected successful gitui launch to return to the original tab after tabprevious')
+assert_truthy(recorded.jobwait ~= nil, 'expected leaving the successful gitui launch to check job status before stopping')
+assert_equal(recorded.jobwait.jobs[1], 77, 'expected leaving the successful gitui launch to check the gitui job id before stopping')
+assert_equal(recorded.jobwait.timeout, 0, 'expected leaving the successful gitui launch to check job status without waiting')
 assert_equal(recorded.jobstop, 77, 'expected leaving the successful gitui launch to stop the terminal job')
 
 vim.api.nvim_exec_autocmds('TermClose', { buffer = recorded.termopen_buf })

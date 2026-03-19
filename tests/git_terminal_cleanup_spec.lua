@@ -84,7 +84,6 @@ assert_truthy(lazygit_config.relative ~= '', 'expected lazygit to open in a floa
 assert_equal(recorded.termopen_buf, vim.api.nvim_win_get_buf(lazygit_float_win), 'expected termopen to target the float buffer')
 assert_equal(recorded.termopen_win, lazygit_float_win, 'expected lazygit float to be current when termopen runs')
 
-termopen_result = 0
 recorded.termopen_cmd = nil
 recorded.termopen_buf = nil
 recorded.termopen_win = nil
@@ -95,13 +94,34 @@ local gitui_starting_tab_count = #vim.api.nvim_list_tabpages()
 callbacks['<leader>G']()
 
 assert_equal(recorded.termopen_cmd[1], 'gitui', 'expected gitui launcher to call termopen')
+local gitui_float_win = vim.api.nvim_get_current_win()
+local gitui_config = vim.api.nvim_win_get_config(gitui_float_win)
+
+assert_truthy(gitui_config.relative == '', 'expected successful gitui launch to stay tab-based')
+assert_truthy(vim.api.nvim_get_current_tabpage() ~= gitui_starting_tab, 'expected successful gitui launch to open a new tab')
+
+vim.cmd 'tabprevious'
+
+assert_truthy(vim.api.nvim_get_current_tabpage() == gitui_starting_tab, 'expected successful gitui launch to return to the original tab after tabprevious')
+
+termopen_result = 0
+recorded.termopen_cmd = nil
+recorded.termopen_buf = nil
+recorded.termopen_win = nil
+
+local failed_gitui_starting_tab = vim.api.nvim_get_current_tabpage()
+local failed_gitui_starting_tab_count = #vim.api.nvim_list_tabpages()
+
+callbacks['<leader>G']()
+
+assert_equal(recorded.termopen_cmd[1], 'gitui', 'expected gitui launcher to call termopen')
 vim.wait(100, function()
-  return vim.api.nvim_get_current_tabpage() == gitui_starting_tab
-    and #vim.api.nvim_list_tabpages() == gitui_starting_tab_count
+  return vim.api.nvim_get_current_tabpage() == failed_gitui_starting_tab
+    and #vim.api.nvim_list_tabpages() == failed_gitui_starting_tab_count
     and not vim.api.nvim_buf_is_valid(recorded.termopen_buf)
 end)
-assert_equal(vim.api.nvim_get_current_tabpage(), gitui_starting_tab, 'expected failed gitui launch to close the created tab')
-assert_equal(#vim.api.nvim_list_tabpages(), gitui_starting_tab_count, 'expected failed gitui launch to restore tab count')
+assert_equal(vim.api.nvim_get_current_tabpage(), failed_gitui_starting_tab, 'expected failed gitui launch to close the created tab')
+assert_equal(#vim.api.nvim_list_tabpages(), failed_gitui_starting_tab_count, 'expected failed gitui launch to restore tab count')
 assert_truthy(not vim.api.nvim_buf_is_valid(recorded.termopen_buf), 'expected failed gitui launch to wipe the created buffer')
 assert_truthy(#recorded.notify > 0, 'expected failed gitui launch to notify the user')
 

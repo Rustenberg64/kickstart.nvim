@@ -45,6 +45,13 @@ vim.fn.termopen = function(cmd)
     error('simulated termopen failure')
   end
 
+  if termopen_mode == 'real_async' and type(cmd) == 'table' and cmd[1] == 'lazygit' then
+    recorded.termopen_cmd = cmd
+    recorded.termopen_buf = vim.api.nvim_get_current_buf()
+    recorded.termopen_win = vim.api.nvim_get_current_win()
+    return original_termopen({ 'sh', '-c', 'exit 0' })
+  end
+
   recorded.termopen_cmd = cmd
   recorded.termopen_buf = vim.api.nvim_get_current_buf()
   recorded.termopen_win = vim.api.nvim_get_current_win()
@@ -134,8 +141,11 @@ end
 vim.cmd 'enew'
 
 local lazygit_starting_win = vim.api.nvim_get_current_win()
+local lazygit_starting_tab = vim.api.nvim_get_current_tabpage()
 
 local lazygit_termclose_win, lazygit_termclose_buf = launch_lazygit('direct TermClose')
+
+assert_equal(vim.api.nvim_get_current_tabpage(), lazygit_starting_tab, 'expected lazygit to stay in the current tab while floating')
 
 vim.api.nvim_exec_autocmds('TermClose', { buffer = lazygit_termclose_buf })
 vim.wait(100, function()
@@ -229,6 +239,27 @@ assert_equal(#vim.api.nvim_list_tabpages(), lazygit_failure_starting_tab_count, 
 assert_truthy(#recorded.notify > 0, 'expected lazygit open_win failure to notify the user')
 
 open_win_mode = 'pass'
+reset_records()
+termopen_result = 77
+
+local lazygit_async_starting_win = vim.api.nvim_get_current_win()
+local lazygit_async_starting_tab = vim.api.nvim_get_current_tabpage()
+termopen_mode = 'real_async'
+
+local lazygit_async_win, lazygit_async_buf = launch_lazygit('async TermClose')
+
+assert_equal(vim.api.nvim_get_current_tabpage(), lazygit_async_starting_tab, 'expected lazygit async launch to stay in the current tab while floating')
+
+vim.wait(1000, function()
+  return not vim.api.nvim_win_is_valid(lazygit_async_win)
+    and not vim.api.nvim_buf_is_valid(lazygit_async_buf)
+end)
+
+assert_truthy(not vim.api.nvim_win_is_valid(lazygit_async_win), 'expected lazygit async exit to close the float window')
+assert_truthy(not vim.api.nvim_buf_is_valid(lazygit_async_buf), 'expected lazygit async exit to wipe the terminal buffer')
+assert_equal(vim.api.nvim_get_current_win(), lazygit_async_starting_win, 'expected lazygit async exit to restore focus to the origin window')
+
+termopen_mode = 'pass'
 reset_records()
 termopen_result = 77
 

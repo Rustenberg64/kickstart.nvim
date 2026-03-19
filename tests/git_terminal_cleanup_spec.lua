@@ -275,4 +275,29 @@ assert_equal(#vim.api.nvim_list_tabpages(), failed_gitui_starting_tab_count, 'ex
 assert_truthy(not vim.api.nvim_buf_is_valid(recorded.termopen_buf), 'expected failed gitui launch to wipe the created buffer')
 assert_truthy(#recorded.notify > 0, 'expected failed gitui launch to notify the user')
 
+reset_records()
+termopen_result = 77
+termopen_mode = 'error'
+
+local gitui_error_starting_tab = vim.api.nvim_get_current_tabpage()
+local gitui_error_starting_tab_count = #vim.api.nvim_list_tabpages()
+
+local gitui_error_ok, gitui_error_err = pcall(callbacks['<leader>G'])
+
+assert_truthy(gitui_error_ok, 'expected gitui termopen error to be handled without error')
+local gitui_error_buf = vim.api.nvim_get_current_buf()
+
+vim.wait(100, function()
+  return vim.api.nvim_get_current_tabpage() == gitui_error_starting_tab
+    and #vim.api.nvim_list_tabpages() == gitui_error_starting_tab_count
+    and not vim.api.nvim_buf_is_valid(gitui_error_buf)
+end)
+
+assert_equal(vim.api.nvim_get_current_tabpage(), gitui_error_starting_tab, 'expected gitui termopen error to restore focus to the original tab')
+assert_equal(#vim.api.nvim_list_tabpages(), gitui_error_starting_tab_count, 'expected gitui termopen error to avoid leaving an extra tab behind')
+assert_truthy(not vim.api.nvim_buf_is_valid(gitui_error_buf), 'expected gitui termopen error to wipe the created buffer')
+assert_truthy(#recorded.notify > 0, 'expected gitui termopen error to notify the user')
+
+termopen_mode = 'pass'
+
 restore()

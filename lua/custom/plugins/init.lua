@@ -23,7 +23,8 @@ local function open_git_tab_terminal(cmd, label)
 
   local terminal_tab = vim.api.nvim_get_current_tabpage()
   local buf = vim.api.nvim_get_current_buf()
-  local job_id = vim.fn.termopen(cmd)
+  local ok, job_id_or_err = pcall(vim.fn.termopen, cmd)
+  local job_id = ok and job_id_or_err or nil
 
   if type(job_id) ~= 'number' or job_id <= 0 then
     vim.notify('Failed to launch ' .. label, vim.log.levels.ERROR)

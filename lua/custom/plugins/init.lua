@@ -76,7 +76,8 @@ local function open_git_tab_terminal(cmd, label)
   })
 end
 
-local function open_lazygit_float()
+local function create_lazygit_float_state()
+  local origin_win = vim.api.nvim_get_current_win()
   local buf = vim.api.nvim_create_buf(false, true)
   vim.bo[buf].bufhidden = 'wipe'
   vim.bo[buf].swapfile = false
@@ -86,7 +87,7 @@ local function open_lazygit_float()
   local row = math.max(math.floor((vim.o.lines - height) / 2 - 1), 0)
   local col = math.max(math.floor((vim.o.columns - width) / 2), 0)
 
-  vim.api.nvim_open_win(buf, true, {
+  local float_win = vim.api.nvim_open_win(buf, true, {
     relative = 'editor',
     row = row,
     col = col,
@@ -96,8 +97,76 @@ local function open_lazygit_float()
     border = 'rounded',
   })
 
-  vim.fn.termopen({ 'lazygit' })
+  return {
+    origin_win = origin_win,
+    buf = buf,
+    float_win = float_win,
+    job_id = nil,
+    stop_requested = false,
+    closed = false,
+  }
+end
+
+local function cleanup_lazygit_float(state, restore_origin)
+  if state.closed then
+    return
+  end
+
+  state.closed = true
+
+  if restore_origin and vim.api.nvim_win_is_valid(state.origin_win) then
+    pcall(vim.api.nvim_set_current_win, state.origin_win)
+  end
+
+  if vim.api.nvim_win_is_valid(state.float_win) then
+    pcall(vim.api.nvim_win_close, state.float_win, true)
+  end
+
+  if vim.api.nvim_buf_is_valid(state.buf) then
+    pcall(vim.cmd, 'bwipeout! ' .. state.buf)
+  end
+end
+
+local function request_lazygit_stop(state)
+  if state.stop_requested or not vim.api.nvim_buf_is_valid(state.buf) or type(state.job_id) ~= 'number' then
+    return
+  end
+
+  local status = vim.fn.jobwait({ state.job_id }, 0)[1]
+  if status == -1 then
+    state.stop_requested = true
+    vim.fn.jobstop(state.job_id)
+  end
+end
+
+local function open_lazygit_float()
+  local state = create_lazygit_float_state()
+  local ok, job_id_or_err = pcall(vim.fn.termopen, { 'lazygit' })
+
+  if not ok or type(job_id_or_err) ~= 'number' or job_id_or_err <= 0 then
+    vim.notify('Failed to launch lazygit', vim.log.levels.ERROR)
+    cleanup_lazygit_float(state, true)
+    return
+  end
+
+  state.job_id = job_id_or_err
   vim.cmd 'startinsert'
+
+  vim.api.nvim_create_autocmd('BufLeave', {
+    buffer = state.buf,
+    once = true,
+    callback = function()
+      request_lazygit_stop(state)
+    end,
+  })
+
+  vim.api.nvim_create_autocmd('TermClose', {
+    buffer = state.buf,
+    once = true,
+    callback = function()
+      cleanup_lazygit_float(state, true)
+    end,
+  })
 end
 
 -- LazyGit (plugin-free)

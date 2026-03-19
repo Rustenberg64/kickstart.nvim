@@ -74,6 +74,8 @@ assert_truthy(type(callbacks['<leader>G']) == 'function', 'expected <leader>G ma
 
 vim.cmd 'enew'
 
+local lazygit_starting_win = vim.api.nvim_get_current_win()
+
 callbacks['<leader>g']()
 
 assert_equal(recorded.termopen_cmd[1], 'lazygit', 'expected lazygit launcher to call termopen')
@@ -84,9 +86,54 @@ assert_truthy(lazygit_config.relative ~= '', 'expected lazygit to open in a floa
 assert_equal(recorded.termopen_buf, vim.api.nvim_win_get_buf(lazygit_float_win), 'expected termopen to target the float buffer')
 assert_equal(recorded.termopen_win, lazygit_float_win, 'expected lazygit float to be current when termopen runs')
 
+vim.api.nvim_set_current_win(lazygit_starting_win)
+
+assert_equal(recorded.jobstop, 77, 'expected leaving the lazygit float to stop the terminal job')
+
+vim.api.nvim_exec_autocmds('TermClose', { buffer = recorded.termopen_buf })
+vim.wait(100, function()
+  return not vim.api.nvim_buf_is_valid(recorded.termopen_buf)
+    and not vim.api.nvim_win_is_valid(lazygit_float_win)
+end)
+
+assert_truthy(not vim.api.nvim_buf_is_valid(recorded.termopen_buf), 'expected lazygit TermClose to wipe the terminal buffer')
+assert_truthy(not vim.api.nvim_win_is_valid(lazygit_float_win), 'expected lazygit TermClose to close the float window')
+assert_equal(vim.api.nvim_get_current_win(), lazygit_starting_win, 'expected lazygit TermClose to preserve focus on the origin window')
+
 recorded.termopen_cmd = nil
 recorded.termopen_buf = nil
 recorded.termopen_win = nil
+recorded.jobstop = nil
+recorded.notify = {}
+
+termopen_result = 0
+
+local lazygit_failure_starting_win = vim.api.nvim_get_current_win()
+local lazygit_failure_starting_tab_count = #vim.api.nvim_list_tabpages()
+
+callbacks['<leader>g']()
+
+assert_equal(recorded.termopen_cmd[1], 'lazygit', 'expected lazygit launcher to call termopen on failure path')
+local failed_lazygit_float_win = recorded.termopen_win
+local failed_lazygit_buf = recorded.termopen_buf
+
+vim.wait(100, function()
+  return vim.api.nvim_get_current_win() == lazygit_failure_starting_win
+    and not vim.api.nvim_win_is_valid(failed_lazygit_float_win)
+    and not vim.api.nvim_buf_is_valid(failed_lazygit_buf)
+end)
+
+assert_equal(vim.api.nvim_get_current_win(), lazygit_failure_starting_win, 'expected lazygit launch failure to restore focus')
+assert_equal(#vim.api.nvim_list_tabpages(), lazygit_failure_starting_tab_count, 'expected lazygit launch failure to avoid creating tabs')
+assert_truthy(not vim.api.nvim_win_is_valid(failed_lazygit_float_win), 'expected lazygit launch failure to close the float window')
+assert_truthy(not vim.api.nvim_buf_is_valid(failed_lazygit_buf), 'expected lazygit launch failure to wipe the float buffer')
+assert_truthy(#recorded.notify > 0, 'expected lazygit launch failure to notify the user')
+
+termopen_result = 77
+recorded.termopen_cmd = nil
+recorded.termopen_buf = nil
+recorded.termopen_win = nil
+recorded.notify = {}
 
 local gitui_starting_tab = vim.api.nvim_get_current_tabpage()
 local gitui_starting_tab_count = #vim.api.nvim_list_tabpages()

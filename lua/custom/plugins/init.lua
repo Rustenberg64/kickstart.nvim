@@ -79,7 +79,7 @@ end
 local function create_lazygit_float_state()
   local origin_win = vim.api.nvim_get_current_win()
   local buf = vim.api.nvim_create_buf(false, true)
-  vim.bo[buf].bufhidden = 'wipe'
+  vim.bo[buf].bufhidden = 'hide'
   vim.bo[buf].swapfile = false
 
   local width = math.max(math.floor(vim.o.columns * 0.9), 80)
@@ -93,7 +93,8 @@ local function create_lazygit_float_state()
     float_win = nil,
     job_id = nil,
     stop_requested = false,
-    closed = false,
+    overlay_closed = false,
+    buffer_wiped = false,
   }
 
   local ok, float_win_or_err = pcall(vim.api.nvim_open_win, buf, true, {
@@ -114,12 +115,12 @@ local function create_lazygit_float_state()
   return state
 end
 
-local function cleanup_lazygit_float(state, restore_origin)
-  if state.closed then
+local function cleanup_lazygit_overlay(state, restore_origin)
+  if state.overlay_closed then
     return
   end
 
-  state.closed = true
+  state.overlay_closed = true
 
   if restore_origin and state.origin_win and vim.api.nvim_win_is_valid(state.origin_win) then
     pcall(vim.api.nvim_set_current_win, state.origin_win)
@@ -128,6 +129,14 @@ local function cleanup_lazygit_float(state, restore_origin)
   if state.float_win and vim.api.nvim_win_is_valid(state.float_win) then
     pcall(vim.api.nvim_win_close, state.float_win, true)
   end
+end
+
+local function wipe_lazygit_buffer(state)
+  if state.buffer_wiped then
+    return
+  end
+
+  state.buffer_wiped = true
 
   if state.buf and vim.api.nvim_buf_is_valid(state.buf) then
     pcall(vim.cmd, 'bwipeout! ' .. state.buf)
@@ -150,7 +159,8 @@ local function open_lazygit_float()
   local state, failed_state = create_lazygit_float_state()
   if not state then
     vim.notify('Failed to launch lazygit', vim.log.levels.ERROR)
-    cleanup_lazygit_float(failed_state, true)
+    cleanup_lazygit_overlay(failed_state, true)
+    wipe_lazygit_buffer(failed_state)
     return
   end
 
@@ -158,7 +168,8 @@ local function open_lazygit_float()
 
   if not ok or type(job_id_or_err) ~= 'number' or job_id_or_err <= 0 then
     vim.notify('Failed to launch lazygit', vim.log.levels.ERROR)
-    cleanup_lazygit_float(state, true)
+    cleanup_lazygit_overlay(state, true)
+    wipe_lazygit_buffer(state)
     return
   end
 
@@ -169,12 +180,12 @@ local function open_lazygit_float()
     buffer = state.buf,
     once = true,
     callback = function()
-      if state.closed then
+      if state.overlay_closed then
         return
       end
 
       request_lazygit_stop(state)
-      cleanup_lazygit_float(state, true)
+      cleanup_lazygit_overlay(state, true)
     end,
   })
 
@@ -182,7 +193,8 @@ local function open_lazygit_float()
     buffer = state.buf,
     once = true,
     callback = function()
-      cleanup_lazygit_float(state, true)
+      cleanup_lazygit_overlay(state, true)
+      wipe_lazygit_buffer(state)
     end,
   })
 end

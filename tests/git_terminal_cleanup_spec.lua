@@ -151,14 +151,23 @@ reset_records()
 termopen_result = 77
 
 local lazygit_leave_starting_win = vim.api.nvim_get_current_win()
+local lazygit_leave_starting_float_count = count_float_windows()
 local lazygit_leave_win, lazygit_leave_buf = launch_lazygit('leave cleanup')
 
 vim.api.nvim_set_current_win(lazygit_leave_starting_win)
 
 assert_equal(recorded.jobstop, 77, 'expected leaving the lazygit float to stop the terminal job')
 assert_truthy(not vim.api.nvim_win_is_valid(lazygit_leave_win), 'expected leaving the lazygit float to dismiss the overlay immediately')
-assert_truthy(not vim.api.nvim_buf_is_valid(lazygit_leave_buf), 'expected leaving the lazygit float to wipe the terminal buffer')
+assert_truthy(vim.api.nvim_buf_is_valid(lazygit_leave_buf), 'expected leaving the lazygit float to keep the terminal buffer until TermClose')
 assert_equal(vim.api.nvim_get_current_win(), lazygit_leave_starting_win, 'expected lazygit leave cleanup to preserve focus on the origin window')
+assert_equal(count_float_windows(), lazygit_leave_starting_float_count, 'expected leaving the lazygit float to avoid leaving behind overlay windows')
+
+local lazygit_leave_termclose_ok = pcall(vim.api.nvim_exec_autocmds, 'TermClose', { buffer = lazygit_leave_buf })
+
+assert_truthy(lazygit_leave_termclose_ok, 'expected synthetic TermClose after lazygit leave cleanup to be handled without error')
+assert_truthy(not vim.api.nvim_buf_is_valid(lazygit_leave_buf), 'expected synthetic TermClose after lazygit leave cleanup to keep the buffer wiped')
+assert_equal(count_float_windows(), lazygit_leave_starting_float_count, 'expected synthetic TermClose after lazygit leave cleanup to not resurrect the float')
+assert_equal(vim.api.nvim_get_current_win(), lazygit_leave_starting_win, 'expected synthetic TermClose after lazygit leave cleanup to keep focus on the origin window')
 
 reset_records()
 termopen_result = 77
@@ -189,13 +198,19 @@ local lazygit_close_win, lazygit_close_buf = launch_lazygit('manual close cleanu
 vim.api.nvim_win_close(lazygit_close_win, true)
 vim.wait(100, function()
   return not vim.api.nvim_win_is_valid(lazygit_close_win)
-    and not vim.api.nvim_buf_is_valid(lazygit_close_buf)
 end)
 
 assert_equal(recorded.jobstop, 77, 'expected manually closing the lazygit float to stop the terminal job')
 assert_truthy(not vim.api.nvim_win_is_valid(lazygit_close_win), 'expected manually closing the lazygit float to dismiss the overlay')
-assert_truthy(not vim.api.nvim_buf_is_valid(lazygit_close_buf), 'expected manually closing the lazygit float to wipe the terminal buffer')
+assert_truthy(vim.api.nvim_buf_is_valid(lazygit_close_buf), 'expected manually closing the lazygit float to keep the terminal buffer until TermClose')
 assert_equal(vim.api.nvim_get_current_win(), lazygit_close_starting_win, 'expected lazygit manual close cleanup to preserve focus on the origin window')
+
+vim.api.nvim_exec_autocmds('TermClose', { buffer = lazygit_close_buf })
+vim.wait(100, function()
+  return not vim.api.nvim_buf_is_valid(lazygit_close_buf)
+end)
+
+assert_truthy(not vim.api.nvim_buf_is_valid(lazygit_close_buf), 'expected lazygit manual close TermClose to wipe the terminal buffer')
 
 reset_records()
 termopen_result = 77
@@ -232,6 +247,7 @@ assert_truthy(vim.api.nvim_get_current_tabpage() ~= gitui_starting_tab, 'expecte
 vim.cmd 'tabprevious'
 
 assert_truthy(vim.api.nvim_get_current_tabpage() == gitui_starting_tab, 'expected successful gitui launch to return to the original tab after tabprevious')
+assert_equal(recorded.jobstop, 77, 'expected leaving the successful gitui launch to stop the terminal job')
 
 vim.api.nvim_exec_autocmds('TermClose', { buffer = recorded.termopen_buf })
 vim.wait(100, function()

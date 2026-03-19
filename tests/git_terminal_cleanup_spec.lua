@@ -7,6 +7,7 @@ local recorded = {
   notify = {},
 }
 local termopen_result = 77
+local termopen_mode = 'pass'
 local open_win_mode = 'pass'
 
 local original_keymap_set = vim.keymap.set
@@ -40,6 +41,10 @@ vim.api.nvim_open_win = function(buf, enter, config)
 end
 
 vim.fn.termopen = function(cmd)
+  if termopen_mode == 'error' then
+    error('simulated termopen failure')
+  end
+
   recorded.termopen_cmd = cmd
   recorded.termopen_buf = vim.api.nvim_get_current_buf()
   recorded.termopen_win = vim.api.nvim_get_current_win()
@@ -77,6 +82,18 @@ local function reset_records()
   recorded.termopen_win = nil
   recorded.jobwait = nil
   recorded.jobstop = nil
+end
+
+local function count_float_windows()
+  local count = 0
+
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_get_config(win).relative ~= '' then
+      count = count + 1
+    end
+  end
+
+  return count
 end
 
 local function assert_equal(actual, expected, message)
@@ -142,6 +159,26 @@ assert_equal(recorded.jobstop, 77, 'expected leaving the lazygit float to stop t
 assert_truthy(not vim.api.nvim_win_is_valid(lazygit_leave_win), 'expected leaving the lazygit float to dismiss the overlay immediately')
 assert_truthy(not vim.api.nvim_buf_is_valid(lazygit_leave_buf), 'expected leaving the lazygit float to wipe the terminal buffer')
 assert_equal(vim.api.nvim_get_current_win(), lazygit_leave_starting_win, 'expected lazygit leave cleanup to preserve focus on the origin window')
+
+reset_records()
+termopen_result = 77
+termopen_mode = 'error'
+
+local lazygit_error_starting_win = vim.api.nvim_get_current_win()
+local lazygit_error_starting_tab_count = #vim.api.nvim_list_tabpages()
+local lazygit_error_starting_float_count = count_float_windows()
+
+local error_ok, error_err = pcall(callbacks['<leader>g'])
+
+assert_truthy(error_ok, 'expected lazygit termopen error to be handled without error')
+assert_truthy(recorded.open_win ~= nil, 'expected lazygit termopen error to attempt opening the float')
+assert_equal(vim.api.nvim_get_current_win(), lazygit_error_starting_win, 'expected lazygit termopen error to restore focus')
+assert_equal(#vim.api.nvim_list_tabpages(), lazygit_error_starting_tab_count, 'expected lazygit termopen error to avoid creating tabs')
+assert_equal(count_float_windows(), lazygit_error_starting_float_count, 'expected lazygit termopen error to close the float window')
+assert_truthy(not vim.api.nvim_buf_is_valid(recorded.open_win.buf), 'expected lazygit termopen error to wipe the scratch buffer')
+assert_truthy(#recorded.notify > 0, 'expected lazygit termopen error to notify the user')
+
+termopen_mode = 'pass'
 
 reset_records()
 termopen_result = 77

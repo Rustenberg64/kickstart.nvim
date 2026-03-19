@@ -186,7 +186,7 @@ local function open_lazygit_float()
       end
 
       request_lazygit_stop(state)
-      cleanup_lazygit_overlay(state, true)
+      cleanup_lazygit_overlay(state, false)
     end,
   })
 

@@ -161,10 +161,16 @@ reset_records()
 termopen_result = 77
 
 local lazygit_leave_starting_win = vim.api.nvim_get_current_win()
+local lazygit_leave_starting_tab = vim.api.nvim_get_current_tabpage()
+vim.cmd 'vsplit'
+local lazygit_leave_destination_win = vim.api.nvim_get_current_win()
+vim.api.nvim_set_current_win(lazygit_leave_starting_win)
 local lazygit_leave_starting_float_count = count_float_windows()
 local lazygit_leave_win, lazygit_leave_buf = launch_lazygit('leave cleanup')
 
-vim.api.nvim_set_current_win(lazygit_leave_starting_win)
+assert_equal(vim.api.nvim_get_current_tabpage(), lazygit_leave_starting_tab, 'expected lazygit to stay in the origin tab while floating')
+
+vim.api.nvim_set_current_win(lazygit_leave_destination_win)
 
 assert_truthy(recorded.jobwait ~= nil, 'expected leaving the lazygit float to check job status before stopping')
 assert_equal(recorded.jobwait.jobs[1], 77, 'expected leaving the lazygit float to check the lazygit job id before stopping')
@@ -172,7 +178,8 @@ assert_equal(recorded.jobwait.timeout, 0, 'expected leaving the lazygit float to
 assert_equal(recorded.jobstop, 77, 'expected leaving the lazygit float to stop the terminal job')
 assert_truthy(not vim.api.nvim_win_is_valid(lazygit_leave_win), 'expected leaving the lazygit float to dismiss the overlay immediately')
 assert_truthy(vim.api.nvim_buf_is_valid(lazygit_leave_buf), 'expected leaving the lazygit float to keep the terminal buffer until TermClose')
-assert_equal(vim.api.nvim_get_current_win(), lazygit_leave_starting_win, 'expected lazygit leave cleanup to preserve focus on the origin window')
+assert_equal(vim.api.nvim_get_current_win(), lazygit_leave_destination_win, 'expected lazygit leave cleanup to keep focus on the destination window')
+assert_equal(vim.api.nvim_get_current_tabpage(), lazygit_leave_starting_tab, 'expected lazygit leave cleanup to keep focus in the origin tab')
 assert_equal(count_float_windows(), lazygit_leave_starting_float_count, 'expected leaving the lazygit float to avoid leaving behind overlay windows')
 
 local lazygit_leave_termclose_ok = pcall(vim.api.nvim_exec_autocmds, 'TermClose', { buffer = lazygit_leave_buf })
@@ -180,7 +187,8 @@ local lazygit_leave_termclose_ok = pcall(vim.api.nvim_exec_autocmds, 'TermClose'
 assert_truthy(lazygit_leave_termclose_ok, 'expected synthetic TermClose after lazygit leave cleanup to be handled without error')
 assert_truthy(not vim.api.nvim_buf_is_valid(lazygit_leave_buf), 'expected synthetic TermClose after lazygit leave cleanup to keep the buffer wiped')
 assert_equal(count_float_windows(), lazygit_leave_starting_float_count, 'expected synthetic TermClose after lazygit leave cleanup to not resurrect the float')
-assert_equal(vim.api.nvim_get_current_win(), lazygit_leave_starting_win, 'expected synthetic TermClose after lazygit leave cleanup to keep focus on the origin window')
+assert_equal(vim.api.nvim_get_current_win(), lazygit_leave_destination_win, 'expected synthetic TermClose after lazygit leave cleanup to keep focus on the destination window')
+assert_equal(vim.api.nvim_get_current_tabpage(), lazygit_leave_starting_tab, 'expected synthetic TermClose after lazygit leave cleanup to keep focus in the origin tab')
 
 reset_records()
 termopen_result = 77

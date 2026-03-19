@@ -157,6 +157,50 @@ assert_truthy(not vim.api.nvim_buf_is_valid(lazygit_termclose_buf), 'expected la
 assert_truthy(not vim.api.nvim_win_is_valid(lazygit_termclose_win), 'expected lazygit TermClose to close the float window')
 assert_equal(vim.api.nvim_get_current_win(), lazygit_starting_win, 'expected lazygit TermClose to preserve focus on the origin window')
 
+local lazygit_geometry_columns = vim.o.columns
+local lazygit_geometry_lines = vim.o.lines
+local lazygit_geometry_test_columns = math.max(1, math.min(lazygit_geometry_columns, 70))
+local lazygit_geometry_test_lines = math.max(1, math.min(lazygit_geometry_lines, 18))
+
+vim.o.columns = lazygit_geometry_test_columns
+vim.o.lines = lazygit_geometry_test_lines
+
+local lazygit_geometry_ok, lazygit_geometry_err = pcall(function()
+  reset_records()
+  termopen_result = 77
+
+  local lazygit_geometry_win, lazygit_geometry_buf = launch_lazygit('geometry clamp')
+  local lazygit_geometry_config = recorded.open_win.config
+
+  assert_truthy(
+    lazygit_geometry_config.width <= lazygit_geometry_test_columns,
+    'expected lazygit float width to stay within the current editor columns'
+  )
+  assert_truthy(
+    lazygit_geometry_config.height <= lazygit_geometry_test_lines,
+    'expected lazygit float height to stay within the current editor lines'
+  )
+
+  vim.api.nvim_exec_autocmds('TermClose', { buffer = lazygit_geometry_buf })
+  vim.wait(100, function()
+    return not vim.api.nvim_buf_is_valid(lazygit_geometry_buf) and not vim.api.nvim_win_is_valid(lazygit_geometry_win)
+  end)
+
+  assert_truthy(
+    not vim.api.nvim_buf_is_valid(lazygit_geometry_buf),
+    'expected lazygit geometry clamp cleanup to wipe the terminal buffer'
+  )
+  assert_truthy(
+    not vim.api.nvim_win_is_valid(lazygit_geometry_win),
+    'expected lazygit geometry clamp cleanup to close the float window'
+  )
+end)
+
+vim.o.columns = lazygit_geometry_columns
+vim.o.lines = lazygit_geometry_lines
+
+assert_truthy(lazygit_geometry_ok, lazygit_geometry_err)
+
 reset_records()
 termopen_result = 77
 

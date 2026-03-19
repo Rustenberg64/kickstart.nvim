@@ -83,8 +83,8 @@ local function create_lazygit_float_state()
   vim.bo[buf].bufhidden = 'hide'
   vim.bo[buf].swapfile = false
 
-  local width = math.max(math.floor(vim.o.columns * 0.9), 80)
-  local height = math.max(math.floor(vim.o.lines * 0.9), 20)
+  local width = math.max(1, math.min(vim.o.columns, math.max(math.floor(vim.o.columns * 0.9), 80)))
+  local height = math.max(1, math.min(vim.o.lines, math.max(math.floor(vim.o.lines * 0.9), 20)))
   local row = math.max(math.floor((vim.o.lines - height) / 2 - 1), 0)
   local col = math.max(math.floor((vim.o.columns - width) / 2), 0)
 
@@ -194,7 +194,7 @@ local function open_lazygit_float()
     buffer = state.buf,
     once = true,
     callback = function()
-      cleanup_lazygit_overlay(state, true)
+      cleanup_lazygit_overlay(state, vim.api.nvim_get_current_win() == state.float_win)
       wipe_lazygit_buffer(state)
     end,
   })

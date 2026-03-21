@@ -483,8 +483,8 @@ local test_ok, test_err = pcall(function()
   -- Verify script content
   local gitui_script_lines = vim.fn.readfile(gitui_script_path)
   assert_truthy(gitui_script_lines[1]:match('#!/usr/bin/env bash'), 'expected temp script to have bash shebang')
-  assert_truthy(gitui_script_lines[2]:match('nvim %-%-server .+ %-%-remote'), 'expected temp script to contain nvim --server --remote command')
-  assert_truthy(not gitui_script_lines[2]:match('%-%-remote%-wait'), 'expected --remote, not --remote-wait (must be non-blocking)')
+  assert_truthy(gitui_script_lines[2]:match('nvim %-%-server .+ %-%-remote%-send'), 'expected temp script to contain nvim --server --remote-send command')
+  assert_truthy(gitui_script_lines[2]:match('_gitui_remote_edit'), 'expected temp script to call _gitui_remote_edit')
 
   -- Test 11: gitui toggle hide/show
   reset_records()

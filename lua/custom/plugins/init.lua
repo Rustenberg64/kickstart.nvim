@@ -198,7 +198,7 @@ local function make_gitui_cmd()
   local script_path = vim.fn.tempname() .. '.sh'
   vim.fn.writefile({
     '#!/usr/bin/env bash',
-    'nvim --server ' .. vim.fn.shellescape(servername) .. ' --remote "$@"',
+    'nvim --server ' .. vim.fn.shellescape(servername) .. ' --remote-send "<Cmd>lua _G._gitui_remote_edit([[$(realpath "$1")]])<CR>"',
   }, script_path)
   vim.fn.setfperm(script_path, 'rwxr-xr-x')
 
@@ -212,6 +212,14 @@ end
 
 local lazygit_state = nil
 local gitui_state = nil
+
+-- Open a file from gitui's edit_file in the origin window (not the float)
+_G._gitui_remote_edit = function(file)
+  if gitui_state and gitui_state.origin_win and vim.api.nvim_win_is_valid(gitui_state.origin_win) then
+    pcall(vim.api.nvim_set_current_win, gitui_state.origin_win)
+  end
+  vim.cmd('edit ' .. vim.fn.fnameescape(file))
+end
 
 -- LazyGit (plugin-free, toggle pattern)
 vim.keymap.set('n', '<leader>g', function()

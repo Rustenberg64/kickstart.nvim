@@ -19,8 +19,8 @@ vim.keymap.set('n', 'L', '<cmd>bnext<cr>', { desc = '[L] Next Buffer' })
 -- Shared git float terminal infrastructure
 
 local function git_float_opts()
-  local width = math.max(1, math.min(vim.o.columns, math.max(math.floor(vim.o.columns * 0.9), 80)))
-  local height = math.max(1, math.min(vim.o.lines, math.max(math.floor(vim.o.lines * 0.9), 20)))
+  local width = math.max(1, math.min(vim.o.columns, math.max(math.floor(vim.o.columns * 0.98), 80)))
+  local height = math.max(1, math.min(vim.o.lines, math.max(math.floor(vim.o.lines * 0.98), 20)))
   local row = math.max(math.floor((vim.o.lines - height) / 2 - 1), 0)
   local col = math.max(math.floor((vim.o.columns - width) / 2), 0)
   return {

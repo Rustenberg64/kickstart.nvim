@@ -16,67 +16,6 @@ vim.keymap.set({ 'n', 'i', 'v' }, '<C-s>', '<cmd>w<cr><esc>', { desc = 'Ctrl+[S]
 vim.keymap.set('n', 'H', '<cmd>bprevious<cr>', { desc = '[H] Previous Buffer' })
 vim.keymap.set('n', 'L', '<cmd>bnext<cr>', { desc = '[L] Next Buffer' })
 
-local function open_git_tab_terminal(cmd, label)
-  local previous_tab = vim.api.nvim_get_current_tabpage()
-
-  vim.cmd 'noautocmd tabnew'
-
-  local terminal_tab = vim.api.nvim_get_current_tabpage()
-  local buf = vim.api.nvim_get_current_buf()
-  local ok, job_id_or_err = pcall(vim.fn.termopen, cmd)
-  local job_id = ok and job_id_or_err or nil
-
-  if type(job_id) ~= 'number' or job_id <= 0 then
-    vim.notify('Failed to launch ' .. label, vim.log.levels.ERROR)
-
-    vim.schedule(function()
-      if vim.api.nvim_buf_is_valid(buf) then
-        vim.cmd('bwipeout! ' .. buf)
-      end
-
-      if vim.api.nvim_tabpage_is_valid(terminal_tab) then
-        pcall(vim.api.nvim_set_current_tabpage, terminal_tab)
-        if vim.api.nvim_get_current_tabpage() == terminal_tab then
-          vim.cmd 'tabclose!'
-        end
-      elseif vim.api.nvim_tabpage_is_valid(previous_tab) then
-        pcall(vim.api.nvim_set_current_tabpage, previous_tab)
-      end
-    end)
-
-    return
-  end
-
-  vim.cmd 'startinsert'
-
-  vim.api.nvim_create_autocmd('BufLeave', {
-    buffer = buf,
-    once = true,
-    callback = function()
-      if not vim.api.nvim_buf_is_valid(buf) then
-        return
-      end
-
-      local status = vim.fn.jobwait({ job_id }, 0)[1]
-      if status == -1 then
-        vim.fn.jobstop(job_id)
-      end
-    end,
-  })
-
-  vim.api.nvim_create_autocmd('TermClose', {
-    buffer = buf,
-    once = true,
-    callback = function()
-      vim.schedule(function()
-        if vim.api.nvim_buf_is_valid(buf) then
-          vim.cmd('bwipeout! ' .. buf)
-        end
-      end)
-    end,
-  })
-end
-
 -- Shared git float terminal infrastructure
 
 local function git_float_opts()
@@ -250,7 +189,29 @@ local function toggle_git_float(state, cmd, opts)
   return new_state
 end
 
+local function make_gitui_cmd()
+  local servername = vim.v.servername
+  if not servername or servername == '' then
+    return { 'gitui' }, nil
+  end
+
+  local script_path = vim.fn.tempname() .. '.sh'
+  vim.fn.writefile({
+    '#!/usr/bin/env bash',
+    'nvim --server ' .. vim.fn.shellescape(servername) .. ' --remote "$@"',
+  }, script_path)
+  vim.fn.setfperm(script_path, 'rwxr-xr-x')
+
+  local cmd = { 'env', 'EDITOR=' .. script_path, 'gitui' }
+  local on_cleanup = function()
+    pcall(os.remove, script_path)
+  end
+
+  return cmd, on_cleanup
+end
+
 local lazygit_state = nil
+local gitui_state = nil
 
 -- LazyGit (plugin-free, toggle pattern)
 vim.keymap.set('n', '<leader>g', function()
@@ -259,9 +220,18 @@ vim.keymap.set('n', '<leader>g', function()
   })
 end, { desc = 'Lazy[G]it' })
 
--- GitUI (plugin-free)
+-- GitUI (plugin-free, float + nvim remote)
 vim.keymap.set('n', '<leader>G', function()
-  open_git_tab_terminal({ 'gitui' }, 'gitui')
+  local cmd, on_cleanup
+  if not float_is_alive(gitui_state) then
+    cmd, on_cleanup = make_gitui_cmd()
+  else
+    cmd = { 'gitui' }
+  end
+  gitui_state = toggle_git_float(gitui_state, cmd, {
+    on_cleanup = on_cleanup,
+    set_state = function(s) gitui_state = s end,
+  })
 end, { desc = '[G]itUI' })
 
 -- Autocmds: terminal mode

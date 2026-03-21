@@ -41,19 +41,21 @@ vim.api.nvim_open_win = function(buf, enter, config)
   return original_open_win(buf, enter, config)
 end
 
-vim.fn.termopen = function(cmd)
+vim.fn.termopen = function(cmd, opts)
   if termopen_mode == 'error' then
     error('simulated termopen failure')
   end
 
-  if termopen_mode == 'real_async' and type(cmd) == 'table' and cmd[1] == 'lazygit' then
+  if termopen_mode == 'real_async' and type(cmd) == 'table' and (cmd[1] == 'lazygit' or vim.tbl_contains(cmd, 'gitui')) then
     recorded.termopen_cmd = cmd
+    recorded.termopen_opts = opts
     recorded.termopen_buf = vim.api.nvim_get_current_buf()
     recorded.termopen_win = vim.api.nvim_get_current_win()
     return original_termopen({ 'sh', '-c', 'exit 0' })
   end
 
   recorded.termopen_cmd = cmd
+  recorded.termopen_opts = opts
   recorded.termopen_buf = vim.api.nvim_get_current_buf()
   recorded.termopen_win = vim.api.nvim_get_current_win()
   return termopen_result
@@ -86,6 +88,7 @@ local function reset_records()
   recorded.notify = {}
   recorded.open_win = nil
   recorded.termopen_cmd = nil
+  recorded.termopen_opts = nil
   recorded.termopen_buf = nil
   recorded.termopen_win = nil
   recorded.jobwait = nil
@@ -123,6 +126,13 @@ local function assert_win_hidden(win, message)
   assert_truthy(ok and config.hide, message)
 end
 
+-- Ensure vim.v.servername is set so make_gitui_cmd() creates the nvim remote
+-- script. In headless -u NONE mode, servername is empty by default.
+if vim.v.servername == '' then
+  local test_server = vim.fn.tempname() .. '-test-server'
+  vim.fn.serverstart(test_server)
+end
+
 local ok, err = pcall(dofile, init_path)
 if not ok then
   restore()
@@ -142,6 +152,22 @@ local function launch_lazygit(context)
   assert_truthy(config.relative ~= '', context .. ' expected lazygit to open in a floating window')
   assert_equal(recorded.termopen_buf, vim.api.nvim_win_get_buf(float_win), context .. ' expected termopen to target the float buffer')
   assert_equal(recorded.termopen_win, float_win, context .. ' expected lazygit float to be current when termopen runs')
+
+  return float_win, recorded.termopen_buf
+end
+
+local function launch_gitui(context)
+  callbacks['<leader>G']()
+
+  assert_truthy(
+    vim.tbl_contains(recorded.termopen_cmd, 'gitui'),
+    context .. ' expected gitui launcher to call termopen with gitui in cmd'
+  )
+  local float_win = vim.api.nvim_get_current_win()
+  local config = vim.api.nvim_win_get_config(float_win)
+
+  assert_truthy(config.relative ~= '', context .. ' expected gitui to open in a floating window')
+  assert_equal(recorded.termopen_buf, vim.api.nvim_win_get_buf(float_win), context .. ' expected termopen to target the float buffer')
 
   return float_win, recorded.termopen_buf
 end
@@ -433,81 +459,95 @@ local test_ok, test_err = pcall(function()
   assert_truthy(not vim.api.nvim_buf_is_valid(reshow_buf), 'expected reshow TermClose to wipe the buffer')
   assert_equal(vim.api.nvim_get_current_win(), reshow_win_b, 'expected reshow TermClose to restore focus to window B, not A')
 
-  -- == GitUI tests (unchanged) ==
+  -- == GitUI tests (float + nvim remote) ==
 
   reset_records()
   termopen_result = 77
 
+  -- Test 10: gitui float launch + nvim remote cmd
+  local gitui_starting_win = vim.api.nvim_get_current_win()
   local gitui_starting_tab = vim.api.nvim_get_current_tabpage()
-  local gitui_starting_tab_count = #vim.api.nvim_list_tabpages()
 
+  local gitui_float_win, gitui_buf = launch_gitui('gitui float launch')
+
+  assert_equal(vim.api.nvim_get_current_tabpage(), gitui_starting_tab, 'expected gitui to stay in the current tab (float, not new tab)')
+
+  -- Verify nvim remote: cmd should be { 'env', 'EDITOR=...', 'gitui' }
+  assert_equal(recorded.termopen_cmd[1], 'env', 'expected gitui cmd to start with env')
+  assert_equal(recorded.termopen_cmd[3], 'gitui', 'expected gitui cmd to end with gitui')
+  local gitui_editor_arg = recorded.termopen_cmd[2]
+  assert_truthy(gitui_editor_arg:match('^EDITOR='), 'expected gitui cmd to set EDITOR env var')
+  local gitui_script_path = gitui_editor_arg:match('^EDITOR=(.+)$')
+  assert_truthy(vim.fn.filereadable(gitui_script_path) == 1, 'expected nvim remote temp script to exist')
+
+  -- Verify script content
+  local gitui_script_lines = vim.fn.readfile(gitui_script_path)
+  assert_truthy(gitui_script_lines[1]:match('#!/usr/bin/env bash'), 'expected temp script to have bash shebang')
+  assert_truthy(gitui_script_lines[2]:match('nvim %-%-server .+ %-%-remote'), 'expected temp script to contain nvim --server --remote command')
+  assert_truthy(not gitui_script_lines[2]:match('%-%-remote%-wait'), 'expected --remote, not --remote-wait (must be non-blocking)')
+
+  -- Test 11: gitui toggle hide/show
+  reset_records()
   callbacks['<leader>G']()
 
-  assert_equal(recorded.termopen_cmd[1], 'gitui', 'expected gitui launcher to call termopen')
-  local gitui_float_win = vim.api.nvim_get_current_win()
-  local gitui_config = vim.api.nvim_win_get_config(gitui_float_win)
-
-  assert_truthy(gitui_config.relative == '', 'expected successful gitui launch to stay tab-based')
-  assert_truthy(vim.api.nvim_get_current_tabpage() ~= gitui_starting_tab, 'expected successful gitui launch to open a new tab')
-
-  vim.cmd 'tabprevious'
-
-  assert_truthy(vim.api.nvim_get_current_tabpage() == gitui_starting_tab, 'expected successful gitui launch to return to the original tab after tabprevious')
-  assert_truthy(recorded.jobwait ~= nil, 'expected leaving the successful gitui launch to check job status before stopping')
-  assert_equal(recorded.jobwait.jobs[1], 77, 'expected leaving the successful gitui launch to check the gitui job id before stopping')
-  assert_equal(recorded.jobwait.timeout, 0, 'expected leaving the successful gitui launch to check job status without waiting')
-  assert_equal(recorded.jobstop, 77, 'expected leaving the successful gitui launch to stop the terminal job')
-
-  vim.api.nvim_exec_autocmds('TermClose', { buffer = recorded.termopen_buf })
-  vim.wait(100, function()
-    return not vim.api.nvim_buf_is_valid(recorded.termopen_buf)
-  end)
-
-  assert_truthy(not vim.api.nvim_buf_is_valid(recorded.termopen_buf), 'expected successful gitui launch to wipe the created buffer on TermClose')
+  assert_win_hidden(gitui_float_win, 'expected gitui toggle hide to hide the float window')
+  assert_truthy(vim.api.nvim_buf_is_valid(gitui_buf), 'expected gitui toggle hide to keep the buffer alive')
+  assert_equal(recorded.jobstop, nil, 'expected gitui toggle hide to NOT stop the job')
 
   reset_records()
-  termopen_result = 0
-
-  local failed_gitui_starting_tab = vim.api.nvim_get_current_tabpage()
-  local failed_gitui_starting_tab_count = #vim.api.nvim_list_tabpages()
-
   callbacks['<leader>G']()
 
-  assert_equal(recorded.termopen_cmd[1], 'gitui', 'expected gitui launcher to call termopen')
-  vim.wait(100, function()
-    return vim.api.nvim_get_current_tabpage() == failed_gitui_starting_tab
-      and #vim.api.nvim_list_tabpages() == failed_gitui_starting_tab_count
-      and not vim.api.nvim_buf_is_valid(recorded.termopen_buf)
-  end)
-  assert_equal(vim.api.nvim_get_current_tabpage(), failed_gitui_starting_tab, 'expected failed gitui launch to close the created tab')
-  assert_equal(#vim.api.nvim_list_tabpages(), failed_gitui_starting_tab_count, 'expected failed gitui launch to restore tab count')
-  assert_truthy(not vim.api.nvim_buf_is_valid(recorded.termopen_buf), 'expected failed gitui launch to wipe the created buffer')
-  assert_truthy(#recorded.notify > 0, 'expected failed gitui launch to notify the user')
+  assert_equal(vim.api.nvim_get_current_win(), gitui_float_win, 'expected gitui toggle show to reuse the same window')
+  assert_truthy(not vim.api.nvim_win_get_config(gitui_float_win).hide, 'expected gitui toggle show to unhide the window')
+  assert_equal(vim.api.nvim_win_get_buf(gitui_float_win), gitui_buf, 'expected gitui toggle show to reuse the existing buffer')
+  assert_equal(recorded.termopen_cmd, nil, 'expected gitui toggle show to NOT call termopen again')
 
+  -- Test 12: gitui TermClose cleanup + temp script deletion
+  vim.api.nvim_exec_autocmds('TermClose', { buffer = gitui_buf })
+  vim.wait(100, function()
+    return not vim.api.nvim_buf_is_valid(gitui_buf) and not vim.api.nvim_win_is_valid(gitui_float_win)
+  end)
+
+  assert_truthy(not vim.api.nvim_buf_is_valid(gitui_buf), 'expected gitui TermClose to wipe the terminal buffer')
+  assert_truthy(not vim.api.nvim_win_is_valid(gitui_float_win), 'expected gitui TermClose to close the float window')
+  assert_truthy(vim.fn.filereadable(gitui_script_path) == 0, 'expected gitui TermClose to delete the nvim remote temp script')
+
+  -- Test 13: gitui termopen error + temp script cleanup on error
   reset_records()
   termopen_result = 77
   termopen_mode = 'error'
 
-  local gitui_error_starting_tab = vim.api.nvim_get_current_tabpage()
-  local gitui_error_starting_tab_count = #vim.api.nvim_list_tabpages()
+  -- Capture temp script path via tempname mock
+  local original_tempname = vim.fn.tempname
+  local captured_tempname = nil
+  vim.fn.tempname = function()
+    captured_tempname = original_tempname()
+    return captured_tempname
+  end
+
+  local gitui_error_starting_win = vim.api.nvim_get_current_win()
+  local gitui_error_starting_float_count = count_float_windows()
 
   local gitui_error_ok, gitui_error_err = pcall(callbacks['<leader>G'])
 
+  vim.fn.tempname = original_tempname
+
   assert_truthy(gitui_error_ok, 'expected gitui termopen error to be handled without error')
-  local gitui_error_buf = vim.api.nvim_get_current_buf()
-
-  vim.wait(100, function()
-    return vim.api.nvim_get_current_tabpage() == gitui_error_starting_tab
-      and #vim.api.nvim_list_tabpages() == gitui_error_starting_tab_count
-      and not vim.api.nvim_buf_is_valid(gitui_error_buf)
-  end)
-
-  assert_equal(vim.api.nvim_get_current_tabpage(), gitui_error_starting_tab, 'expected gitui termopen error to restore focus to the original tab')
-  assert_equal(#vim.api.nvim_list_tabpages(), gitui_error_starting_tab_count, 'expected gitui termopen error to avoid leaving an extra tab behind')
-  assert_truthy(not vim.api.nvim_buf_is_valid(gitui_error_buf), 'expected gitui termopen error to wipe the created buffer')
+  assert_equal(vim.api.nvim_get_current_win(), gitui_error_starting_win, 'expected gitui termopen error to restore focus')
+  assert_equal(count_float_windows(), gitui_error_starting_float_count, 'expected gitui termopen error to close the float window')
   assert_truthy(#recorded.notify > 0, 'expected gitui termopen error to notify the user')
 
+  -- Verify temp script was cleaned up on error (toggle_git_float calls opts.on_cleanup)
+  if captured_tempname then
+    local gitui_error_script = captured_tempname .. '.sh'
+    assert_truthy(vim.fn.filereadable(gitui_error_script) == 0, 'expected temp script to be cleaned up after termopen error')
+  end
+
   termopen_mode = 'pass'
+
+  -- Note: servername fallback test (vim.v.servername == '') is omitted because
+  -- vim.v.servername is read-only in Neovim. The fallback is a 2-line if-check
+  -- in make_gitui_cmd and can be verified by manual testing.
 end)
 
 restore()

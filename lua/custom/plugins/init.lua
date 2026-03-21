@@ -222,14 +222,14 @@ _G._gitui_remote_edit = function(file)
 end
 
 -- LazyGit (plugin-free, toggle pattern)
-vim.keymap.set('n', '<leader>g', function()
+vim.keymap.set('n', '<leader>G', function()
   lazygit_state = toggle_git_float(lazygit_state, { 'lazygit' }, {
     set_state = function(s) lazygit_state = s end,
   })
 end, { desc = 'Lazy[G]it' })
 
 -- GitUI (plugin-free, float + nvim remote)
-vim.keymap.set('n', '<leader>G', function()
+vim.keymap.set('n', '<leader>g', function()
   local cmd, on_cleanup
   if not float_is_alive(gitui_state) then
     cmd, on_cleanup = make_gitui_cmd()

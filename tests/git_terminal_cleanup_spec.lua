@@ -459,6 +459,35 @@ local test_ok, test_err = pcall(function()
   assert_truthy(not vim.api.nvim_buf_is_valid(reshow_buf), 'expected reshow TermClose to wipe the buffer')
   assert_equal(vim.api.nvim_get_current_win(), reshow_win_b, 'expected reshow TermClose to restore focus to window B, not A')
 
+  -- == Test 10: lazygit remote edit opens in the origin window ==
+
+  reset_records()
+  termopen_result = 77
+
+  local lazygit_edit_origin_win = vim.api.nvim_get_current_win()
+  local lazygit_edit_file = vim.fn.tempname() .. '.txt'
+  vim.fn.writefile({ 'alpha', 'beta', 'gamma' }, lazygit_edit_file)
+
+  local lazygit_edit_float_win, lazygit_edit_buf = launch_lazygit('remote edit')
+
+  assert_truthy(type(_G._lazygit_remote_edit) == 'function', 'expected _lazygit_remote_edit helper')
+
+  _G._lazygit_remote_edit(lazygit_edit_file, 3)
+
+  assert_equal(vim.api.nvim_get_current_win(), lazygit_edit_origin_win, 'expected lazygit remote edit to restore the origin window')
+  assert_equal(vim.api.nvim_buf_get_name(0), vim.fs.normalize(lazygit_edit_file), 'expected lazygit remote edit to open the requested file')
+  assert_equal(vim.api.nvim_win_get_cursor(0)[1], 3, 'expected lazygit remote edit to jump to the requested line')
+  assert_win_hidden(lazygit_edit_float_win, 'expected lazygit remote edit to hide the float window')
+  assert_truthy(vim.api.nvim_buf_is_valid(lazygit_edit_buf), 'expected lazygit remote edit to keep the terminal buffer alive')
+  assert_equal(recorded.jobstop, nil, 'expected lazygit remote edit to avoid stopping the terminal job')
+
+  vim.api.nvim_exec_autocmds('TermClose', { buffer = lazygit_edit_buf })
+  vim.wait(100, function()
+    return not vim.api.nvim_buf_is_valid(lazygit_edit_buf) and not vim.api.nvim_win_is_valid(lazygit_edit_float_win)
+  end)
+
+  assert_truthy(vim.fn.delete(lazygit_edit_file) == 0, 'expected lazygit remote edit temp file cleanup to succeed')
+
   -- == GitUI tests (float + nvim remote) ==
 
   reset_records()

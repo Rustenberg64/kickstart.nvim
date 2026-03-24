@@ -213,12 +213,26 @@ end
 local lazygit_state = nil
 local gitui_state = nil
 
+local function edit_file_in_origin_window(state, file, line)
+  if state and state.origin_win and vim.api.nvim_win_is_valid(state.origin_win) then
+    pcall(vim.api.nvim_set_current_win, state.origin_win)
+  end
+
+  vim.cmd('edit ' .. vim.fn.fnameescape(file))
+
+  local target_line = tonumber(line)
+  if target_line and target_line > 0 then
+    pcall(vim.api.nvim_win_set_cursor, 0, { target_line, 0 })
+  end
+end
+
+_G._lazygit_remote_edit = function(file, line)
+  edit_file_in_origin_window(lazygit_state, file, line)
+end
+
 -- Open a file from gitui's edit_file in the origin window (not the float)
 _G._gitui_remote_edit = function(file)
-  if gitui_state and gitui_state.origin_win and vim.api.nvim_win_is_valid(gitui_state.origin_win) then
-    pcall(vim.api.nvim_set_current_win, gitui_state.origin_win)
-  end
-  vim.cmd('edit ' .. vim.fn.fnameescape(file))
+  edit_file_in_origin_window(gitui_state, file)
 end
 
 -- LazyGit (plugin-free, toggle pattern)

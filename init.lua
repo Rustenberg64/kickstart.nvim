@@ -856,6 +856,10 @@ require('lazy').setup({
 
   { -- Collection of various small independent plugins/modules
     'nvim-mini/mini.nvim',
+    dependencies = {
+      -- Provides textobject queries (@function.outer etc.) for mini.ai's treesitter spec
+      { 'nvim-treesitter/nvim-treesitter-textobjects', branch = 'main' },
+    },
     config = function()
       -- Better Around/Inside textobjects
       --
@@ -863,7 +867,16 @@ require('lazy').setup({
       --  - va)  - [V]isually select [A]round [)]paren
       --  - yinq - [Y]ank [I]nside [N]ext [Q]uote
       --  - ci'  - [C]hange [I]nside [']quote
-      require('mini.ai').setup { n_lines = 500 }
+      --  - vaf  - [V]isually select [A]round [f]unction (treesitter)
+      --  - vic  - [V]isually select [I]nside [c]lass (treesitter)
+      local spec_treesitter = require('mini.ai').gen_spec.treesitter
+      require('mini.ai').setup {
+        n_lines = 500,
+        custom_textobjects = {
+          f = spec_treesitter { a = '@function.outer', i = '@function.inner' },
+          c = spec_treesitter { a = '@class.outer', i = '@class.inner' },
+        },
+      }
 
       -- Add/delete/replace surroundings (brackets, quotes, etc.)
       --

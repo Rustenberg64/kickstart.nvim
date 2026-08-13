@@ -276,4 +276,13 @@ vim.api.nvim_create_autocmd({ 'BufEnter', 'FocusGained' }, {
   end,
 })
 
+-- Reload files changed outside of Neovim (e.g. by Claude Code in another pane)
+vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter' }, {
+  callback = function()
+    if vim.fn.getcmdwintype() == '' and vim.bo.buftype == '' then
+      vim.cmd 'checktime'
+    end
+  end,
+})
+
 return {}

@@ -12,7 +12,7 @@ lua/
 │   ├── flutter-tools.lua       # Flutter development (<leader>F prefix)
 │   ├── neotest.lua             # Test runner for rspec (<leader>T prefix)
 │   ├── octo.lua                # GitHub issues/PRs via octo.nvim (<leader>o prefix)
-│   ├── render-markdown.lua     # Reading-oriented Markdown rendering
+│   ├── markdown-preview.lua    # Live Markdown preview in the browser
 │   └── vim-tmux-navigator.lua  # Tmux pane navigation (C-hjkl)
 └── kickstart/plugins/          # Bundled optional plugins (toggled via require in init.lua)
 ```
@@ -31,6 +31,12 @@ lua/
 - **Add keymaps/options/autocmds**: Append to `lua/custom/plugins/init.lua`
 - **Add an LSP server**: Add to `local servers = { ... }` table in `init.lua`
 - **Add a Treesitter parser**: Add to `local parsers = { ... }` table in `init.lua`
+
+## Markdown Preview
+
+Markdown stays as raw, editable source in Neovim. From a Markdown buffer, use
+`:MarkdownPreview` to open the live browser preview, `:MarkdownPreviewStop` to
+stop it, or `:MarkdownPreviewToggle` to switch it between running and stopped.
 
 ## Code Style
 

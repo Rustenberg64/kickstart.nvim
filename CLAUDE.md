@@ -12,6 +12,7 @@ lua/
 │   ├── flutter-tools.lua       # Flutter development (<leader>F prefix)
 │   ├── neotest.lua             # Test runner for rspec (<leader>T prefix)
 │   ├── octo.lua                # GitHub issues/PRs via octo.nvim (<leader>o prefix)
+│   ├── render-markdown.lua     # Reading-oriented Markdown rendering
 │   └── vim-tmux-navigator.lua  # Tmux pane navigation (C-hjkl)
 └── kickstart/plugins/          # Bundled optional plugins (toggled via require in init.lua)
 ```
